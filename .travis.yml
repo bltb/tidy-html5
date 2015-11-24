@@ -6,9 +6,6 @@ compiler:
   - clang
   - gcc
 
-script:
-  - cd build/cmake && cmake ../..
-
 before_install:
   - yes | sudo add-apt-repository ppa:kalakris/cmake
   - sudo apt-get update -qq
