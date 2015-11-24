@@ -9,15 +9,11 @@ compiler:
 install:
   # install cmake
   - CMAKE_VERSION="3.3.2"
-  - wget --no-check-certificate "http://www.cmake.org/files/v3.3/cmake-${CMAKE_VERSION}.tar.gz"
-  - openssl sha1 "cmake-${CMAKE_VERSION}.tar.gz"
-  - tar xf "cmake-${CMAKE_VERSION}.tar.gz"
-  - cd "cmake-${CMAKE_VERSION}"
-  - ./bootstrap --prefix=~
-  - make
-  - make install
-  - export PATH="~/bin:${PATH}"
-  - cd ..
+  - wget --no-check-certificate http://www.cmake.org/files/v3.3/cmake-${CMAKE_VERSION}-Linux-x86_64.sh
+  - chmod a+x cmake-${CMAKE_VERSION}-Linux-x86_64.sh
+  - ./cmake-${CMAKE_VERSION}-Linux-x86_64.sh --skip-license --prefix=${HOME}/.local/usr
+  - export PATH=${HOME}/.local/usr/bin:$PATH
+  - cmake --version
  
 before_script:
   - BUILD_DIR=`pwd`/build/cmake
