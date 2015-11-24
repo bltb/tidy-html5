@@ -1,17 +1,14 @@
-language: cpp
-
-sudo: true
+language: c
 
 compiler:
   - clang
   - gcc
 
 before_install:
-  - yes | sudo add-apt-repository ppa:kalakris/cmake
-  - sudo apt-get update # -qq
+  - export SCRIPTS=./scripts/travis
 
 install:
-  - sudo apt-get -y install clang
+  - sudo -E $SCRIPTS/travis_install.sh
 
 before_script:
   - BUILD_DIR=`pwd`/build/cmake
