@@ -6,17 +6,18 @@ compiler:
   - clang
   - gcc
 
-addons:
-  apt:
-    packages:
-    - cmake
-
-# before_install:
-#   - yes | sudo add-apt-repository -y ppa:ubuntu-sdk-team/ppa
-#   - sudo apt-get update -qq
-# 
-# install:
-#   - sudo apt-get -y install cmake
+install:
+  # install cmake
+  - CMAKE_VERSION="3.3.2"
+  - wget "http://www.cmake.org/files/v3.3/cmake-${CMAKE_VERSION}.tar.gz"
+  - openssl sha1 "cmake-${CMAKE_VERSION}.tar.gz"
+  - tar xf "cmake-${CMAKE_VERSION}.tar.gz"
+  - cd "cmake-${CMAKE_VERSION}"
+  - ./bootstrap --prefix=~
+  - make
+  - make install
+  - export PATH="~/bin:${PATH}"
+  - cd ..
  
 before_script:
   - BUILD_DIR=`pwd`/build/cmake
