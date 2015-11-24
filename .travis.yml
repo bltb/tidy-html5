@@ -1,0 +1,27 @@
+language: cpp
+
+sudo: true
+
+compiler:
+  - clang
+  - gcc
+
+script:
+  - cd build/cmake && cmake ../..
+
+before_install:
+  - yes | sudo add-apt-repository ppa:kalakris/cmake
+  - sudo apt-get update -qq
+
+install: sudo apt-get update -qq
+
+before_script:
+  - BUILD_DIR=`pwd`/build/cmake
+  - if [ ! -d ${BUILD_DIR} ] ; then mkdir -p ${BUILD_DIR} ; fi
+  - cd ${BUILD_DIR}
+  - cmake ../..
+
+script:
+  - cd ${BUILD_DIR}
+  - make
+
