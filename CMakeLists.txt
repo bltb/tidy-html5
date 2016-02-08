@@ -1,6 +1,6 @@
 # CMakeLists.txt - 20150402 - 20150130 - 20140801 - for github htacg/tidy-html5
 # Prepare for changing the name to 'tidy'
-cmake_minimum_required (VERSION 2.8.8)
+cmake_minimum_required (VERSION 2.8.7)
 
 set(LIB_NAME tidy)
 
@@ -36,15 +36,29 @@ else ()
     message(FATAL_ERROR "*** FAILED to get a DATE from version.txt!")
 endif ()
 
-# BY default, BOTH library types build, Allow turning OFF shared if not neede
-set( LIB_TYPE STATIC )  # set default static
+# By default, BOTH library types built, Allow turning OFF shared if not needed
+set( LIB_TYPE STATIC )  # set default message
 option( BUILD_SHARED_LIB "Set OFF to NOT build shared library"    ON  )
 option( BUILD_TAB2SPACE  "Set ON to build utility app, tab2space" OFF )
 option( BUILD_SAMPLE_CODE "Set ON to build the sample code"       OFF )
 if (NOT MAN_INSTALL_DIR)
     set(MAN_INSTALL_DIR share/man/man1)
 endif ()
-option( BUILD_DOCUMENTATION "Set ON to build the documentation"   OFF )
+# Issue #326 - Allow linkage choice of console app tidy
+option( TIDY_CONSOLE_SHARED "Set ON to link with shared(DLL) lib." OFF )
+if (TIDY_CONSOLE_SHARED)
+    if (NOT BUILD_SHARED_LIB)
+        message(FATAL_ERROR "Enable shared build for this tidy linkage!")
+    endif ()
+endif ()
+
+# Allow building without extra language support
+option( SUPPORT_LOCALIZATIONS "Set OFF to build without additional languages." ON )
+if (SUPPORT_LOCALIZATIONS)
+add_definitions ( -DSUPPORT_LOCALIZATIONS=1 )
+else ()
+add_definitions ( -DSUPPORT_LOCALIZATIONS=0 )
+endif ()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
     set( WARNING_FLAGS -Wall )
@@ -85,7 +99,7 @@ add_definitions ( -DSUPPORT_ASIAN_ENCODINGS=1 )
 add_definitions ( -DSUPPORT_ACCESSIBILITY_CHECKS=1 )
 add_definitions ( -DLIBTIDY_VERSION="${LIBTIDY_VERSION}" )
 add_definitions ( -DRELEASE_DATE="${tidy_YEAR}/${tidy_MONTH}/${tidy_DAY}" )
-### add_definitions ( -DRC_NUMBER="EXP3" )
+### add_definitions ( -DRC_NUMBER="MinGW" )
 
 # Issue #188 - Support user items in platform.h
 if (TIDY_CONFIG_FILE)
@@ -117,11 +131,12 @@ set ( CFILES
         ${SRCDIR}/access.c       ${SRCDIR}/attrs.c        ${SRCDIR}/istack.c
         ${SRCDIR}/parser.c       ${SRCDIR}/tags.c         ${SRCDIR}/entities.c
         ${SRCDIR}/lexer.c        ${SRCDIR}/pprint.c       ${SRCDIR}/charsets.c ${SRCDIR}/clean.c
-        ${SRCDIR}/localize.c     ${SRCDIR}/config.c       ${SRCDIR}/alloc.c
+        ${SRCDIR}/message.c      ${SRCDIR}/config.c       ${SRCDIR}/alloc.c
         ${SRCDIR}/attrask.c      ${SRCDIR}/attrdict.c     ${SRCDIR}/attrget.c
         ${SRCDIR}/buffio.c       ${SRCDIR}/fileio.c       ${SRCDIR}/streamio.c
         ${SRCDIR}/tagask.c       ${SRCDIR}/tmbstr.c       ${SRCDIR}/utf8.c
-        ${SRCDIR}/tidylib.c      ${SRCDIR}/mappedio.c     ${SRCDIR}/gdoc.c )
+        ${SRCDIR}/tidylib.c      ${SRCDIR}/mappedio.c     ${SRCDIR}/gdoc.c
+        ${SRCDIR}/language.c  )
 set ( HFILES
         ${INCDIR}/tidyplatform.h ${INCDIR}/tidy.h         ${INCDIR}/tidyenum.h
         ${INCDIR}/tidybuffio.h )
@@ -132,7 +147,8 @@ set ( LIBHFILES
         ${SRCDIR}/mappedio.h     ${SRCDIR}/message.h      ${SRCDIR}/parser.h
         ${SRCDIR}/pprint.h       ${SRCDIR}/streamio.h     ${SRCDIR}/tags.h
         ${SRCDIR}/tmbstr.h       ${SRCDIR}/utf8.h         ${SRCDIR}/tidy-int.h
-        ${SRCDIR}/version.h      ${SRCDIR}/gdoc.h  )
+        ${SRCDIR}/version.h      ${SRCDIR}/gdoc.h         ${SRCDIR}/language.h
+        ${SRCDIR}/language_en.h  ${SRCDIR}/win32tc.h )
 if (MSVC)
     list(APPEND CFILES ${SRCDIR}/sprtf.c)
     list(APPEND LIBHFILES ${SRCDIR}/sprtf.h)
@@ -157,7 +173,9 @@ add_library ( ${name} STATIC ${CFILES} ${HFILES} ${LIBHFILES} )
 set_target_properties( ${name} PROPERTIES 
     OUTPUT_NAME ${LIB_NAME}s
     )
-list ( APPEND add_LIBS ${name} )
+if (NOT TIDY_CONSOLE_SHARED) # user wants default static linkage
+    list ( APPEND add_LIBS ${name} )
+endif ()    
 install(TARGETS ${name}
         RUNTIME DESTINATION ${BIN_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
@@ -183,16 +201,23 @@ if (BUILD_SHARED_LIB)
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         )
+    if (TIDY_CONSOLE_SHARED)    # user wants shared/dll linkage
+        list ( APPEND add_LIBS ${name} )
+    endif ()    
 endif ()
 
 ##########################################################
-### main executable - linked with STATIC library
+### main executable - linked with STATIC/SHARED library
 set(name ${LIB_NAME})
 set ( BINDIR console )
 add_executable( ${name} ${BINDIR}/tidy.c )
 target_link_libraries( ${name} ${add_LIBS} )
 if (MSVC)
     set_target_properties( ${name} PROPERTIES DEBUG_POSTFIX d )
+endif ()
+if (NOT TIDY_CONSOLE_SHARED)
+    set_target_properties( ${name} PROPERTIES 
+                                   COMPILE_FLAGS "-DTIDY_STATIC" )
 endif ()
 install (TARGETS ${name} DESTINATION bin)
 
@@ -202,7 +227,7 @@ if (BUILD_TAB2SPACE)
     if (MSVC)
         set_target_properties( ${name} PROPERTIES DEBUG_POSTFIX d )
     endif ()
-    # no INSTALL of this 'local' tool
+    # no INSTALL of this 'local' tool - use depreciated
 endif ()
 
 if (BUILD_SAMPLE_CODE)
@@ -231,7 +256,7 @@ if (UNIX)
         set(TIDYCONFIG ${CMAKE_CURRENT_BINARY_DIR}/tidy-config.xml)
         add_custom_target(man ALL DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${LIB_NAME}")
         configure_file(
-            ${CMAKE_CURRENT_SOURCE_DIR}/documentation/tidy1.xsl.in
+            ${CMAKE_CURRENT_SOURCE_DIR}/man/tidy1.xsl.in
             ${TIDY1XSL}
         )
  
@@ -261,65 +286,7 @@ if (UNIX)
         )
 
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${TIDY_MANFILE} DESTINATION ${MAN_INSTALL_DIR})
-        
-        if (BUILD_DOCUMENTATION)
-            find_program( DOXYGEN_FOUND doxygen )
-            if (DOXYGEN_FOUND)
-                set( WRK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/documentation )
-                set( EXP_DIR ${WRK_DIR}/examples )
-                set( OUT_DIR ${WRK_DIR}/temp )
-                set( DXY_DIR ${WRK_DIR}/temp/tidylib_api )
-                set( DXY_CFG ${WRK_DIR}/temp_doxygen.cfg )
-                file( READ ${WRK_DIR}/doxygen.cfg PARAMS )
-                set( PARAMS "${PARAMS}PROJECT_NUMBER=${LIBTIDY_VERSION}\n" )
-                set( PARAMS "${PARAMS}GENERATE_TAGFILE=${DXY_DIR}/tidy.tags\n" )
-                set( PARAMS "${PARAMS}HTML_EXTRA_FILES=${EXP_DIR}/tidy5.help.txt ${EXP_DIR}/tidy5.config.txt\n" )    
-                set( PARAMS "${PARAMS}# eof\n" )
-                file( WRITE ${DXY_CFG} ${PARAMS} )
-                file( MAKE_DIRECTORY ${OUT_DIR} )
-                add_custom_target( documentation ALL )
-                #=========================================
-                # Generate files.
-                #=========================================
-                add_custom_command(
-                    TARGET documentation
-                    COMMENT "Build Documentation"
-                    VERBATIM
-                    WORKING_DIRECTORY ${WRK_DIR}
-                    COMMAND xsltproc ARGS quickref.xsl ${TIDYCONFIG} > ${OUT_DIR}/quickref.html
-                    COMMAND xsltproc ARGS quickref.include.xsl ${TIDYCONFIG} > ${EXP_DIR}/quickref_include.html # delete later
-                    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${LIB_NAME} -h > ${EXP_DIR}/tidy5.help.txt # delete later
-                    COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${LIB_NAME} -help-config > ${EXP_DIR}/tidy5.config.txt   # delete later
-                    COMMAND cp ARGS ../README/LICENSE.md ${EXP_DIR}  # delete later
-                    )
-                #=========================================
-                # Run Doxygen.
-                #=========================================
-                add_custom_command(
-                    TARGET documentation
-                    COMMENT "Run Doxygen"
-                    VERBATIM
-                    WORKING_DIRECTORY ${WRK_DIR}
-                    COMMAND cat ${DXY_CFG} | doxygen - > /dev/null      
-                    )
-                #=========================================
-                # Cleanup.
-                #=========================================
-                add_custom_command(
-                    TARGET documentation
-                    COMMENT "Cleanup"
-                    VERBATIM
-                    WORKING_DIRECTORY ${WRK_DIR}
-                    COMMAND rm ${EXP_DIR}/quickref_include.html
-                    COMMAND rm ${EXP_DIR}/tidy5.help.txt
-                    COMMAND rm ${EXP_DIR}/tidy5.config.txt
-                    COMMAND rm ${EXP_DIR}/LICENSE.md
-                    )
-                install(CODE "MESSAGE(\"Build output can be found in ${OUT_DIR}.\")")
-            else ()
-                message(STATUS "*** NOTE: doxygen NOT FOUND! Can NOT generate documentation.")
-            endif ()
-        endif ()
+
     else ()
         message(STATUS "*** NOTE: xsltproc NOT FOUND! Can NOT generate man page.")
         message(STATUS "*** You need to install xsltproc in your system.")
